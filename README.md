@@ -450,7 +450,9 @@ IslandClean/
 
 ## 📄 许可证
 
-MIT License © 2026 IslandClean Contributors
+Apache License 2.0 © 2026 DojetBot Contributors
+
+详见 [LICENSE](LICENSE) 文件。
 
 ---
 
