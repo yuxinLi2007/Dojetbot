@@ -8,110 +8,158 @@
 | **系统** | Ubuntu 18.04.6 LTS (Bionic Beaver) |
 | **内核** | Linux 4.9.253-tegra aarch64 |
 | **内存** | 4GB RAM，1.9GB Swap |
+| **存储** | 板载eMMC |
 | **扩展板** | Waveshare JetBot Board |
-| **摄像头** | IMX219 CSI 相机 (通过 nvarguscamerasrc GStreamer 驱动) |
 
 ## 已安装的库
 
-### 手动安装
-- `Adafruit-MotorHAT` 1.4.0 — Adafruit 电机驱动库
-- `Adafruit-PCA9685` 1.0.1 — PCA9685 PWM 控制器库
-- `Adafruit-GPIO` 1.0.3
-- `spidev` 3.8
+### Python 系统包
+- Python 3.6.9
+- pip 9.0.1
+- numpy 1.13.3
+- matplotlib 2.1.1
+- pandas 0.22.0
 
-### 板载预装
-- `Jetson.GPIO` 2.0.17 — Jetson GPIO 库
-- `jetbot` — JetBot 项目模块 (`/home/yuxin/jetbot/`)
-- OpenCV 4.1.1 — 计算机视觉库
-- numpy, matplotlib, pandas, Python 3.6.9
+### 电机控制相关（手动安装）
+- `Adafruit-MotorHAT` 1.4.0
+- `Adafruit-PCA9685` 1.0.1
+- `Adafruit-GPIO` 1.0.3
+
+### 板载已预装
+- `Jetson.GPIO` 2.0.17 — Jetson GPIO库
+- `jetbot` — JetBot项目模块 (位于 `/home/yuxin/jetbot/`)
+
+### 未安装但可能需要
+- `smbus` / `smbus2` — 原始 I2C 访问
+- `opencv-python` — 图像处理
+- `torch` / `torchvision` — PyTorch（JetBot AI相关）
 
 ## 硬件接口
 
 ### I2C 总线
-| 总线 | 设备 | 地址 |
-|------|------|------|
-| i2c-1 | PCA9685 (电机PWM控制器) | **0x40** |
-| i2c-1 | I2C 多路器 | 0x70 |
-| i2c-0 | IMX219 摄像头 | 0x3c |
+
+| 总线 | 设备地址 | 说明 |
+|------|---------|------|
+| i2c-0 | 0x3c | 摄像头 IMX219 |
+| i2c-1 | 0x1b, 0x40 (PCA9685), 0x70 | 电机PWM控制、I2C多路器 |
+| i2c-2 | 0x50, 0x57 | EEPROM |
+| i2c-3 | — | 未使用 |
+| i2c-4 | max77620 | PMIC |
+| i2c-5 | — | 未使用 |
+| i2c-6 | — | 未使用 |
+
+### GPIO
+
+- **gpiochip0**: tegra-gpio, 256 pins, base 0 (Jetson Nano主GPIO)
+- **gpiochip504**: max77620-gpio, 8 pins, base 504 (PMIC GPIO)
+
+用户 `yuxin` 在 `gpio` 和 `i2c` 组中，可直接访问GPIO和I2C。
+
+### PWM
+
+- `pwmchip0` — 7000a000.pwm
+- `pwmchip4` — 70110000.pwm
 
 ### 其他接口
-- `/dev/video0` — CSI 摄像头
-- `/dev/ttyTHS1`, `/dev/ttyTHS2` — UART 串口
-- gpiochip0 (tegra-gpio, 256 pins)
-- pwmchip0, pwmchip4
+
+| 接口 | 路径 | 说明 |
+|------|------|------|
+| 摄像头 | `/dev/video0` | IMX219 CSI摄像头 |
+| 串口 | `/dev/ttyTHS1`, `/dev/ttyTHS2` | UART串口 |
+| SPI | 设备树已注册未导出 | /dev/spi* 不存在 |
 
 ## 电机驱动方案
 
 ### 硬件架构
+
 ```
-Jetson Nano I2C Bus 1 → PCA9685 @ 0x40 → H桥 → 左右DC电机
+Jetson Nano (I2C Bus 1)
+    ↓
+PCA9685 PWM控制器 @ 0x40  (16通道, 12位PWM, 60Hz)
+    ↓
+H桥电机驱动 (Waveshare JetBot Board)
+    ↓
+左右2路DC电机
 ```
 
-### 当前通道映射（待验证）
-Waveshare JetBot Board 使用 PCA9685 通道 0-3：
+### PCA9685 通道映射（Waveshare JetBot Board）
 
-| 电机 | INA | INB | 正转(PWM) | 反转(PWM) |
-|------|-----|-----|-----------|-----------|
-| M1 (左) | ch1 | ch0 | ch1=ON, ch0=OFF | ch1=OFF, ch0=ON |
-| M2 (右) | ch2 | ch3 | ch2=ON, ch3=OFF | ch2=OFF, ch3=ON |
+根据 `jetbot/motor.py` 源代码：
 
-### 已知问题
-- 标准 Adafruit MotorHAT 通道（8-13）也能驱动电机，当前不确定哪组通道实际连接
-- **电机极性反向**：代码中正值=电机向后转，负值=电机向前转
-- 需进一步确认 PCA9685 各通道与物理电机的对应关系
+| 电机 | 通道 | 说明 |
+|------|------|------|
+| M1 (左) | INA = ch1, INB = ch0 | 正转: ch1=PWM, ch0=0; 反转: ch1=0, ch0=PWM |
+| M2 (右) | INA = ch2, INB = ch3 | 正转: ch2=PWM, ch3=0; 反转: ch2=0, ch3=PWM |
 
-## 已完成功能
+### 标准 MotorHAT 通道（可能未连接）
 
-### Step 1: 摄像头 ✅
-- 使用 GStreamer pipeline 驱动 IMX219
-- 分辨率 640x480 @ 30FPS
-- 成功捕获并保存画面
+标准 Adafruit Motor HAT 映射（PCA9685通道）：
+- Motor 1: PWM=ch8, IN1=ch9, IN2=ch10
+- Motor 2: PWM=ch13, IN1=ch11, IN2=ch12
 
-### Step 2: 障碍物检测 ✅
-- 三重检测：亮度下降 + 纹理分析 + 边缘密度
-- 左/中/右三区障碍物判断
-- 自动校准参考亮度
-- 验证：成功检测到前方物体
+注意：Waveshare版上这些通道可能未连接，实际控制通过通道0-3。
 
-### Step 3: 避障控制 🚧 (进行中)
-- 前进/后退/左转/右转/停止 功能已实现
-- 电机极性映射待最终确认
-- 避障逻辑：前进 → 遇障碍 → 停车转向 → 继续前进
+### 控制方式
 
-## 使用说明
+有两种控制方式：
+1. **直接PCA9685控制** — 通过 Adafruit_PCA9685 直接设置通道0-3的PWM
+2. **Adafruit MotorHAT + Waveshare覆盖** — 使用 MotorHAT 库同时覆盖通道0-3
 
-### SSH 连接
+## 已验证可运行代码
+
+### `jetbot_control.py` — 主控制脚本
+```bash
+python3 ~/Dojetbot/jetbot_control.py forward 1.0 0.3   # 前进1秒，速度30%
+python3 ~/Dojetbot/jetbot_control.py backward 1.0 0.3  # 后退1秒，速度30%
+python3 ~/Dojetbot/jetbot_control.py left 1.0 0.3      # 左转1秒
+python3 ~/Dojetbot/jetbot_control.py right 1.0 0.3     # 右转1秒
+python3 ~/Dojetbot/jetbot_control.py demo 1.5 0.4      # 演示序列
+```
+
+注意：当前电机极性映射还有待调试，后退方向有动作（略带转弯），前进方向无动作。需要进一步调整 INA/INB 的映射关系。
+
+### `test_motor_channels.py` — 电机通道诊断
+测试每个PCA9685通道的电机响应，确定正确的通道映射。
+
+### `test_car_hw.py` — 硬件检测
+检测PCA9685、MotorHAT初始化、I2C设备探测。
+
+## 待办/下一步计划
+
+- [ ] 修正电机方向映射（前进无动作问题）
+- [ ] 确认左右电机对应的通道
+- [ ] 调整左转/右转逻辑（差速转向）
+- [ ] 添加速度PID控制
+- [ ] 集成摄像头实时画面
+- [ ] 添加遥控控制（键盘/手柄）
+- [ ] 实现自动避障
+- [ ] 实现巡线功能
+- [ ] 添加Web控制界面
+
+## 开发/调试指南
+
+### SSH连接
 ```bash
 ssh yuxin@10.1.41.174  # 密码: 123456
 ```
 
-### 运行避障
+### 文件传输
 ```bash
-cd ~/Dojetbot
-python3 dojetbot.py forward    # 前进测试
-python3 dojetbot.py avoid      # 避障模式 (120秒)
+scp local_file yuxin@10.1.41.174:~/Dojetbot/
 ```
 
-### 电机测试
+### 运行Python脚本
 ```bash
-python3 dojetbot.py test_motor     # 快速电机测试
-python3 simple_motor_test.py        # 详细的通道测试
+python3 ~/Dojetbot/script_name.py
 ```
 
-### 摄像头测试
+### I2C调试
 ```bash
-python3 step1b_test_camera_jetpack.py  # 验证摄像头
-python3 step2_obstacle_detection.py 8  # 障碍物检测测试
+i2cdetect -y -r 1   # 扫描I2C Bus 1
+i2cget -y 1 0x40 0x00 w  # 读取PCA9685寄存器
 ```
 
-## 待办事项
-
-- [ ] **完成电机通道映射调试** — 确认 PCA9685 各通道与电机的对应关系
-- [ ] 验证避障逻辑完整流程
-- [ ] 添加键盘遥控模式
-- [ ] 添加 Web 控制界面
-
-## 注意事项
-- 小车插网线，测试速度和距离要控制
-- 先在桌面用 `test_motor` 模式验证方向，再运行避障
-- Jetson Nano 是 ARM64 架构
+### 注意事项
+- 小车插着网线，测试时速度不宜超过30%，距离不宜超过1米
+- 不要同时长时间运行电机避免过热
+- Jetson Nano为ARM64架构，安装包时确认有arm64版本

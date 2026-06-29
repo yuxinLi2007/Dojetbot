@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+NUL
+
+# IDE
+.vscode/
+.idea/
+
+# Temp / artifacts
+Dojetbot_temp/
+stream_server.log
+test_frame.jpg
+test_result.jpg
+test_raw.jpg
+*.tmp
+
+# Large model files (download separately on Jetson)
+*.onnx
+*.weights
+*.pb
+*.pt
+*.pth
+*.pbtxt

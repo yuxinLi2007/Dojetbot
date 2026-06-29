@@ -70,10 +70,12 @@ class Motors:
         self.drive(s, s)
 
     def spin_left(self, s=None):
+        """原地左转: 左后右前"""
         sp = s or MOTOR_SPEED
         self.drive(sp, -sp)
 
     def spin_right(self, s=None):
+        """原地右转: 左前右后"""
         sp = s or MOTOR_SPEED
         self.drive(-sp, sp)
 
@@ -106,10 +108,12 @@ class Detector:
         self.ref_brightness = None
 
     def detect(self, frame):
+        """返回 (left_blocked, center_blocked, right_blocked, has_obstacle)"""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(blur, 30, 90)
 
+        # 自动校准参考亮度(取左区)
         if self.ref_brightness is None:
             self.ref_brightness = gray[ROI_TOP:, :213].mean()
             return False, False, False, False
@@ -145,10 +149,12 @@ class Detector:
 def run_avoidance(duration=60):
     print("=== Dojetbot 避障模式 ===")
     print("运行时长: %.1f秒  速度: %d" % (duration, MOTOR_SPEED))
+    print("状态: FWD=前进, TURN=转向, STOP=停止")
 
     motors = Motors()
     camera = Detector()
 
+    # 等待摄像头稳定
     for _ in range(5):
         camera.read()
 
@@ -167,22 +173,28 @@ def run_avoidance(duration=60):
             frame_count += 1
             l, c, r, blocked = camera.detect(frame)
 
+            # 每秒输出状态
             if frame_count % 30 == 0:
                 elapsed = time.time() - start
-                print("  [%.1fs] %s | 左=%s 中=%s 右=%s" % (elapsed, state, l, c, r))
+                print("  [%.1fs] %s | 左=%s 中=%s 右=%s" % (
+                    elapsed, state, l, c, r))
 
             if state == "FWD":
                 if c or (l and r):
+                    # 前方有障碍 → 停车转向
                     motors.stop()
                     state = "TURN"
                     turn_start = time.time()
                     turn_dir = "right" if l else "left"
                     print("  > 障碍物! 转向%s <" % turn_dir)
                 elif l:
+                    # 左侧障碍 → 微右转
                     motors.drive(-MOTOR_SPEED, -MOTOR_SPEED + SPEED_DIFF)
                 elif r:
+                    # 右侧障碍 → 微左转
                     motors.drive(-MOTOR_SPEED + SPEED_DIFF, -MOTOR_SPEED)
                 else:
+                    # 无障碍 → 前进
                     motors.forward()
 
             elif state == "TURN":
@@ -193,11 +205,11 @@ def run_avoidance(duration=60):
 
                 if time.time() - turn_start > TURN_DURATION:
                     motors.stop()
-                    camera.ref_brightness = None
+                    camera.ref_brightness = None  # 重新校准
                     state = "FWD"
                     print("  > 转向完成 <")
 
-            time.sleep(0.01)
+            time.sleep(0.01)  # 防止CPU满载
 
     finally:
         motors.stop()
