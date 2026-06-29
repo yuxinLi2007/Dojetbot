@@ -1,5 +1,7 @@
 # Dojetbot — Jetson Nano 智能小车
 
+> **活跃分支**: `feature/yolov8-detection` — 摄像头实时目标检测开发中
+
 ## 硬件平台
 
 | 项目 | 详情 |
