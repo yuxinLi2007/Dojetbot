@@ -1,5 +1,10 @@
 # Dojetbot — Jetson Nano 智能小车
 
+> **活跃分支**: `feature/detection-v2` — v0.2.0 YOLOv8n TensorRT 目标检测 (2026-07-01)
+>
+> 采用 TensorRT GPU 加速 YOLOv8n，支持 80 类 COCO 目标识别，约 11 FPS。
+> 前置依赖: TensorRT 8.2 (JetPack 内置), 无需 PyTorch / ultralytics。
+
 ## 硬件平台
 
 | 项目 | 详情 |
