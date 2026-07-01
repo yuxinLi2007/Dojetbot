@@ -31,8 +31,9 @@
 
 ### 未安装但可能需要
 - `smbus` / `smbus2` — 原始 I2C 访问
-- `opencv-python` — 图像处理
-- `torch` / `torchvision` — PyTorch（JetBot AI相关）
+- `opencv-python` 4.1.1 — 图像处理 (含 DNN 模块)
+- `Flask` 2.0.3 — HTTP 串流服务
+- `torch` / `torchvision` — PyTorch（JetBot AI相关，未安装）
 
 ## 硬件接口
 
@@ -107,6 +108,19 @@ H桥电机驱动 (Waveshare JetBot Board)
 
 ## 已验证可运行代码
 
+### `detection/app.py` — YOLOv3-tiny 实时检测串流服务器 (MVP v0.2.0)
+```bash
+cd ~/Dojetbot/detection
+nohup python3 app.py > /tmp/yolo_server.log 2>&1 &
+```
+浏览器打开 `http://10.1.41.174:5000` 查看实时检测画面。
+
+### `detection/test_app.py` — 环境测试
+```bash
+python3 ~/Dojetbot/detection/test_app.py
+```
+测试摄像头 + YOLOv3-tiny 模型加载。
+
 ### `jetbot_control.py` — 主控制脚本
 ```bash
 python3 ~/Dojetbot/jetbot_control.py forward 1.0 0.3   # 前进1秒，速度30%
@@ -130,11 +144,12 @@ python3 ~/Dojetbot/jetbot_control.py demo 1.5 0.4      # 演示序列
 - [ ] 确认左右电机对应的通道
 - [ ] 调整左转/右转逻辑（差速转向）
 - [ ] 添加速度PID控制
-- [ ] 集成摄像头实时画面
+- [x] 集成摄像头实时画面 (YOLOv3-tiny, HTTP串流, 320x240, 端口5000)
 - [ ] 添加遥控控制（键盘/手柄）
 - [ ] 实现自动避障
 - [ ] 实现巡线功能
 - [ ] 添加Web控制界面
+- [ ] 升级到YOLOv8n（需安装PyTorch for Jetson或编译onnxruntime）
 
 ## 开发/调试指南
 
